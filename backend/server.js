@@ -1,4 +1,3 @@
-// server.js
 require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
@@ -6,7 +5,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 
-// Import routes
+// Import your routes
 const userRoutes = require('./routes/user.routes');
 const authRoutes = require('./routes/auth.routes');
 const productRoutes = require('./routes/product.routes');
@@ -38,22 +37,17 @@ const app = express();
 // Connect to DB
 connectDB();
 
-// --- Middlewares ---
+// Middlewares
 app.use(helmet());
+app.use(cors({
+    origin: 'http://localhost:3000', // Update for production frontend URL
+    credentials: true
+}));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS setup for frontend with cookies
-const FRONTEND_URL = 'https://inventory-management-system-xi-one-18.vercel.app';
-app.use(cors({
-    origin: FRONTEND_URL,
-    credentials: true
-}));
-// Preflight requests
-app.options('*', cors({ origin: FRONTEND_URL, credentials: true }));
-
-// Simple request logger
+// Simple logger
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
     next();
@@ -61,8 +55,10 @@ app.use((req, res, next) => {
 
 // --- Routes ---
 
-// Root
-app.get('/', (req, res) => res.send('Inventory Management System Backend is live!'));
+// Root route (for testing in browser)
+app.get('/', (req, res) => {
+    res.send('Inventory Management System Backend is live!');
+});
 
 // Health check
 app.all(['/api/health', '/health'], (req, res) => {
@@ -109,7 +105,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Start email scheduler only in local/dev
+// Start email scheduler in development only
 if (process.env.VERCEL !== '1') {
     const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {
@@ -120,5 +116,5 @@ if (process.env.VERCEL !== '1') {
     console.log('Server configured for Vercel serverless');
 }
 
-// Export app for Vercel
+// Export app for Vercel serverless
 module.exports = app;
