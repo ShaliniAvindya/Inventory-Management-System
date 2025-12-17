@@ -1,33 +1,30 @@
 const jwt = require('jsonwebtoken');
-// const User = require('../models/User.model'); // Need access to the User model
 
 exports.protect = async (req, res, next) => {
+  try {
     let token;
 
-    // --- THIS IS THE NEW LOGIC ---
-    // 1. Read the token from the httpOnly cookie
-    if (req.cookies.token) {
-        token = req.cookies.token;
+    // Read token from cookie
+    if (req.cookies?.token) {
+      token = req.cookies.token;
     }
-    // --- END OF NEW LOGIC ---
-
-    // (The old header logic is now gone)
 
     if (!token) {
-        return res.status(401).json({ success: false, message: 'Not authorized to access this route (No Token)' });
+      return res.status(401).json({ success: false, message: 'Not authorized (No token)' });
     }
 
-    try {
-        // (This logic is the same)
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        req.user = { 
-            id: decoded.id, 
-            role: decoded.role 
-        };
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        next();
-    } catch (err) {
-        res.status(401).json({ success: false, message: 'Not authorized to access this route (Invalid Token)' });
-    }
+    // Attach user info to request
+    req.user = {
+      id: decoded.id,
+      role: decoded.role
+    };
+
+    next();
+  } catch (err) {
+    console.error("AUTH PROTECT ERROR:", err.message);
+    res.status(401).json({ success: false, message: 'Not authorized (Invalid token)' });
+  }
 };
