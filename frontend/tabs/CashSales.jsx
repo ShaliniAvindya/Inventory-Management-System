@@ -33,16 +33,10 @@ import { fetchProducts } from "../services/productApi"
 import { fetchCustomers } from "../services/customersApi"
 import { fetchLocations } from "../services/inventoryApi"
 import { processCheckout } from "../services/salesApi"
-import { fiscalizeInvoice, generateInvoiceJSON } from "../app/actions/mra"
 import { useCurrentUser } from "../context/CurrentUserContext"
 
 const PAYMENT_METHODS = [
   { value: "cash", label: "Cash", icon: "💵" },
-  { value: "card", label: "Credit/Debit Card", icon: "💳" },
-  { value: "mobile_money", label: "Mobile Money", icon: "📱" },
-  { value: "bank_transfer", label: "Bank Transfer", icon: "🏦" },
-  { value: "cheque", label: "Cheque", icon: "📝" },
-  { value: "credit", label: "Credit Sale", icon: "🧾" },
   { value: "split", label: "Split Payment", icon: "🧮" },
 ]
 
@@ -194,10 +188,6 @@ export default function CashSales() {
     // Determine backend payment_type mapping
     const paymentTypeMap = {
       cash: "Cash",
-      card: "Cash",
-      mobile_money: "Cash",
-      bank_transfer: "Cash",
-      cheque: "Cash",
       credit: "Credit",
       split: "Split",
     }
@@ -257,24 +247,23 @@ export default function CashSales() {
 
     // Generate invoice JSON
   // Always label as Walk-in in invoice output
-  const customerData = { name: "Walk-in Customer", phone: null, idNumber: null }
-  const invoiceJSON = await generateInvoiceJSON(cart, customerData, paymentTypeMap[paymentMethod].toLowerCase())
-
-    invoiceJSON.discount = discountAmount
-    invoiceJSON.discountType = discount.type
-    invoiceJSON.discountValue = discount.value
-    invoiceJSON.subtotal = subtotal
-    invoiceJSON.total = total
-    invoiceJSON.tax = tax
-    invoiceJSON.paymentMethod = paymentMethod
-    invoiceJSON.paymentReference = paymentReference
-
-    // Fiscalize with MRA (server-side)
-    const fiscalResult = await fiscalizeInvoice(invoiceJSON, false)
-
-    const saleRecord = {
-      ...invoiceJSON,
-      ...fiscalResult,
+  const saleRecord = {
+      invoiceNumber: `INV-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      customerName: "Walk-in Customer",
+      items: cart.map(item => ({
+        name: item.displayName || item.name,
+        quantity: item.qty,
+        price: item.price,
+        total: item.qty * item.price
+      })),
+      discount: discountAmount,
+      discountType: discount.type,
+      discountValue: discount.value,
+      subtotal: subtotal,
+      total: total,
+      paymentMethod: paymentMethod,
+      paymentReference: paymentReference,
       id: Date.now(),
       date: new Date().toISOString(),
     }
@@ -300,13 +289,34 @@ export default function CashSales() {
 
   return (
     <>
-      {/* NEW CLEAN LAYOUT */}
       <Section title="Cash Sales" breadcrumbs={["Home", "Sales", "Cash"]}>
-        <Grid container spacing={4}>
-          
-          {/* Payment Summary - LEFT SIDE (md=4) */}
-          <Grid item xs={12} md={4} sx={{ order: { xs: 2, md: 1 } }}>
-            <Card className="rounded-2xl shadow-sm" sx={{ border: '1px solid #4caf5030', bgcolor: '#4caf5005' }}>
+        <div></div>
+      </Section>
+      
+      {/* TWO COLUMN LAYOUT - OUTSIDE SECTION */}
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: 'row',
+        gap: '20px',
+        backgroundColor: '#f0f0f0',
+        padding: '10px',
+        border: '2px solid red',
+        position: 'absolute',
+        top: '200px',
+        left: '320px',
+        right: '20px',
+        zIndex: 1000
+      }}>
+        
+        {/* LEFT COLUMN - Payment Summary */}
+        <div style={{ 
+          width: '350px',
+          minWidth: '350px',
+          maxWidth: '350px',
+          backgroundColor: 'yellow',
+          border: '2px solid blue'
+        }}>
+            <Card className="rounded-2xl shadow-sm" sx={{ border: '1px solid #4caf5030', bgcolor: '#4caf5005', width: '100%' }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ color: '#4caf50', fontWeight: 700, mb: 3 }}>
                   Payment Summary
@@ -348,17 +358,19 @@ export default function CashSales() {
                   </FormControl>
                 </Box>
 
-                {/* Customer Name Optional */}
-                <Box sx={{ mb: 2.5 }}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Customer Name (Optional)"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Walk-in Customer"
-                  />
-                </Box>
+                {/* Customer Name Optional - only show when no customer selected (walk-in) */}
+                {!selectedCustomerId && (
+                  <Box sx={{ mb: 2.5 }}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Customer Name (Optional)" 
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      placeholder="Walk-in Customer"
+                    />
+                  </Box>
+                )}
 
                 {/* Payment Method */}
                 <Box sx={{ mb: 2.5 }}>
@@ -377,28 +389,7 @@ export default function CashSales() {
                   </FormControl>
                 </Box>
 
-                {/* Payment Reference */}
-                {paymentMethod !== "cash" && paymentMethod !== "split" && paymentMethod !== "credit" && (
-                  <Box sx={{ mb: 2.5 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Payment Reference"
-                      value={paymentReference}
-                      onChange={(e) => setPaymentReference(e.target.value)}
-                      placeholder={
-                        paymentMethod === "card"
-                          ? "Last 4 digits"
-                          : paymentMethod === "mobile_money"
-                            ? "Transaction ID"
-                            : paymentMethod === "bank_transfer"
-                              ? "Transfer reference"
-                              : "Cheque number"
-                      }
-                      helperText="Optional reference for tracking"
-                    />
-                  </Box>
-                )}
+                {/* Payment Reference - not required for Cash/Split/Credit in this UI */}
 
                 {/* Split Payment */}
                 {paymentMethod === "split" && (
@@ -419,7 +410,7 @@ export default function CashSales() {
                         setSplitCredit(Number((total - v).toFixed(2)));
                       }}
                       size="small"
-                      helperText={`Credit to book: $${Number(splitCredit).toFixed(2)} (Total: $${total.toFixed(2)})`}
+                      helperText={`Credit to book: Rs ${Number(splitCredit).toFixed(2)} (Total: Rs ${total.toFixed(2)})`}
                     />
                   </Box>
                 )}
@@ -443,7 +434,7 @@ export default function CashSales() {
                       size="small"
                     >
                       <MenuItem value="percentage">%</MenuItem>
-                      <MenuItem value="fixed">$</MenuItem>
+                      <MenuItem value="fixed">Rs</MenuItem>
                     </TextField>
                     <TextField
                       fullWidth
@@ -463,17 +454,17 @@ export default function CashSales() {
                 <Box sx={{ mb: 2.5 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem' }}>
                     <span>Subtotal</span>
-                    <Typography sx={{ fontWeight: 500 }}>${subtotal.toFixed(2)}</Typography>
+                    <Typography sx={{ fontWeight: 500 }}>Rs {subtotal.toFixed(2)}</Typography>
                   </Box>
                   {discountAmount > 0 && (
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem', color: '#4caf50' }}>
-                      <span>Discount ({discount.type === "percentage" ? `${discount.value}%` : "$"})</span>
-                      <Typography sx={{ fontWeight: 500 }}>-${discountAmount.toFixed(2)}</Typography>
+                      <span>Discount ({discount.type === "percentage" ? `${discount.value}%` : "Rs"})</span>
+                      <Typography sx={{ fontWeight: 500 }}>-Rs {discountAmount.toFixed(2)}</Typography>
                     </Box>
                   )}
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 600, pt: 1 }}>
                     <span>Total</span>
-                    <span>${total.toFixed(2)}</span>
+                    <span>Rs {total.toFixed(2)}</span>
                   </Box>
                 </Box>
 
@@ -506,59 +497,93 @@ export default function CashSales() {
                 </Box>
               </CardContent>
             </Card>
-          </Grid>
+          </div>
 
-          {/* Items Selection - RIGHT SIDE (md=8) */}
-          <Grid item xs={12} md={8} sx={{ order: { xs: 1, md: 2 } }}>
+          {/* RIGHT COLUMN - Products */}
+          <div style={{ 
+            flex: '1',
+            backgroundColor: 'lightgreen',
+            border: '2px solid green',
+            minWidth: '400px'
+          }}>
             <Card className="rounded-2xl shadow-sm" sx={{ border: '1px solid #4caf5030', bgcolor: '#4caf5005' }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ color: '#4caf50', fontWeight: 700, mb: 3 }}>
                   Select Items
                 </Typography>
 
+                {/* Search Bar */}
+                <Box sx={{ mb: 2 }}>
+                  <SearchInput 
+                    placeholder="Search products by name or SKU..." 
+                    value={query} 
+                    onChange={setQuery}
+                  />
+                </Box>
+
                 {/* Product Grid */}
                 <Box sx={{ mb: 3 }}>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-2">
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-2 max-h-[450px] overflow-y-auto p-2">
                     {loadingProducts ? (
-                      <div className="col-span-4 text-center py-8 text-slate-500">
+                      <div className="col-span-6 text-center py-8 text-slate-500">
                         Loading products...
                       </div>
                     ) : pool.length === 0 ? (
-                      <div className="col-span-4 text-center py-8 text-slate-500">
+                      <div className="col-span-6 text-center py-8 text-slate-500">
                         No products found
                       </div>
                     ) : (
-                      pool.slice(0, 16).map((p) => (
+                      pool.slice(0, 30).map((p) => (
                         <Button
                           key={p.sku}
                           variant="outlined"
                           onClick={() => handleProductClick(p)}
-                          className="justify-between flex-col items-start h-auto py-2"
                           size="small"
                           sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            minHeight: '85px',
+                            p: 1.5,
                             borderColor: '#4caf5050',
+                            textAlign: 'left',
                             '&:hover': {
                               borderColor: '#4caf50',
                               bgcolor: '#4caf5010'
                             }
                           }}
                         >
-                          <span className="truncate text-left w-full text-xs">{p.name}</span>
-                          <div className="w-full flex items-center justify-between">
-                            <span className="font-semibold">Rs {Number(p.selling_price ?? p.price ?? 0).toFixed(2)}</span>
+                          <Typography sx={{ 
+                            fontSize: '0.7rem', 
+                            fontWeight: 600, 
+                            lineHeight: 1.2,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            width: '100%'
+                          }}>
+                            {p.name}
+                          </Typography>
+                          <Box sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+                              Rs {Number(p.selling_price ?? p.price ?? 0).toFixed(2)}
+                            </Typography>
                             {p.variants && p.variants.length > 0 && (
                               <Chip 
                                 label={`${p.variants.length}v`} 
                                 size="small" 
                                 sx={{ 
-                                  height: 16, 
-                                  fontSize: '0.65rem',
+                                  height: 14, 
+                                  fontSize: '0.6rem',
                                   bgcolor: '#4caf5020',
                                   color: '#4caf50'
                                 }} 
                               />
                             )}
-                          </div>
+                          </Box>
                         </Button>
                       ))
                     )}
@@ -652,34 +677,21 @@ export default function CashSales() {
                 </Box>
               </CardContent>
             </Card>
-          </Grid>
+          </div>
 
-        </Grid>
+        </div>
       </Section>
       {/* Invoice Dialog */}
       <Dialog open={showInvoice} onClose={() => setShowInvoice(false)} maxWidth="md" fullWidth>
         <DialogTitle className="flex items-center justify-between">
-          <span>MRA Fiscalized Invoice</span>
+          <span>Sales Invoice</span>
           <IconButton onClick={() => setShowInvoice(false)}>
             <Close />
           </IconButton>
         </DialogTitle>
         <DialogContent>
           {invoiceData && (
-            <div className="space-y-4">
-              {invoiceData.success ? (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <Typography variant="body2" className="text-green-800 font-medium">
-                    ✓ Invoice successfully fiscalized with MRA
-                  </Typography>
-                </div>
-              ) : (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <Typography variant="body2" className="text-red-800 font-medium">
-                    ✗ Fiscalization failed: {invoiceData.error}
-                  </Typography>
-                </div>
-              )}
+            <div className="space-y-4" id="invoice-print-area">
 
               <Grid container spacing={2}>
                 <Grid item xs={6}>
@@ -769,48 +781,39 @@ export default function CashSales() {
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${invoiceData.subtotal.toFixed(2)}</span>
+                  <span>Rs {invoiceData.subtotal.toFixed(2)}</span>
                 </div>
                 {invoiceData.discount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Discount</span>
-                    <span>-${invoiceData.discount.toFixed(2)}</span>
+                    <span>-Rs {invoiceData.discount.toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>Tax (15%)</span>
-                  <span>${invoiceData.tax.toFixed(2)}</span>
-                </div>
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total</span>
-                  <span>${invoiceData.total.toFixed(2)}</span>
-                </div>
-              </div>
-
-              <Divider />
-
-              <div>
-                <Typography variant="subtitle2" className="font-semibold mb-2">
-                  Send to Customer
-                </Typography>
-                <div className="flex gap-2">
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Customer Phone (WhatsApp)"
-                    placeholder="+230 5 123 4567"
-                    value={""}
-                    onChange={() => {}}
-                  />
-                  <Button variant="outlined" startIcon={<Close />} disabled size="small">
-                    Send
-                  </Button>
+                  <span>Rs {invoiceData.total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
           )}
         </DialogContent>
         <DialogActions>
+          <Button 
+            variant="outlined" 
+            onClick={() => {
+              const printContent = document.getElementById('invoice-print-area')
+              const windowPrint = window.open('', '', 'width=800,height=600')
+              windowPrint.document.write('<html><head><title>Invoice</title>')
+              windowPrint.document.write('<style>body{font-family:Arial,sans-serif;padding:20px}@media print{body{padding:0}}</style>')
+              windowPrint.document.write('</head><body>')
+              windowPrint.document.write(printContent.innerHTML)
+              windowPrint.document.write('</body></html>')
+              windowPrint.document.close()
+              windowPrint.print()
+            }}
+          >
+            Print Invoice
+          </Button>
           <Button variant="contained" onClick={handleCompleteSale}>
             Complete Sale
           </Button>

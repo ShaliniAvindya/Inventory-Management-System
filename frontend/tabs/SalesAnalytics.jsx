@@ -288,7 +288,7 @@ export default function SalesAnalytics() {
                     Total Revenue
                   </Typography>
                   <Typography variant="h5" className="font-bold mt-1">
-                    ${metrics.totalRevenue.toFixed(2)}
+                    Rs {metrics.totalRevenue.toFixed(2)}
                   </Typography>
                 </div>
                 <ShoppingCart className="text-green-500" fontSize="large" />
@@ -342,7 +342,7 @@ export default function SalesAnalytics() {
                 Avg Transaction
               </Typography>
               <Typography variant="h5" className="font-bold mt-1">
-                ${metrics.avgTransaction.toFixed(2)}
+                Rs {metrics.avgTransaction.toFixed(2)}
               </Typography>
             </CardContent>
           </Card>
@@ -358,7 +358,7 @@ export default function SalesAnalytics() {
                 {productSales[0]?.name || "N/A"}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                ${productSales[0]?.revenue.toFixed(2) || "0.00"} revenue
+                Rs {productSales[0]?.revenue.toFixed(2) || "0.00"} revenue
               </Typography>
             </CardContent>
           </Card>
@@ -539,10 +539,10 @@ export default function SalesAnalytics() {
                       </TableCell>
                       <TableCell align="right">{product.quantity}</TableCell>
                       <TableCell align="right" className="font-semibold">
-                        ${product.revenue.toFixed(2)}
+                        Rs {product.revenue.toFixed(2)}
                       </TableCell>
                       <TableCell align="right">{product.transactions}</TableCell>
-                      <TableCell align="right">${(product.revenue / product.transactions).toFixed(2)}</TableCell>
+                      <TableCell align="right">Rs {(product.revenue / product.transactions).toFixed(2)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -578,7 +578,7 @@ export default function SalesAnalytics() {
                       <TableCell className="font-medium">{category.name}</TableCell>
                       <TableCell align="right">{category.quantity}</TableCell>
                       <TableCell align="right" className="font-semibold">
-                        ${category.revenue.toFixed(2)}
+                        Rs {category.revenue.toFixed(2)}
                       </TableCell>
                       <TableCell align="right">
                         <Chip
@@ -587,7 +587,7 @@ export default function SalesAnalytics() {
                           color="primary"
                         />
                       </TableCell>
-                      <TableCell align="right">${(category.revenue / category.quantity).toFixed(2)}</TableCell>
+                      <TableCell align="right">Rs {(category.revenue / category.quantity).toFixed(2)}</TableCell>
                     </TableRow>
                   ))
                 )}

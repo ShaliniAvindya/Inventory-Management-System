@@ -27,12 +27,10 @@ import {
 } from "@mui/material"
 import { ReceiptLong, QrCode2, Add, Delete, Close, Warning, CheckCircle } from "@mui/icons-material"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-// Using high-stock inventory (only items with aggregated stock > threshold)
-import { fetchHighStockInventory } from "../services/inventoryApi"
+import { fetchProducts } from "../services/productApi"
 import { fetchCustomers, createCustomer } from "../services/customersApi"
 import { fetchLocations } from "../services/inventoryApi"
 import { processCheckout } from "../services/salesApi"
-import { fiscalizeInvoice, generateInvoiceJSON } from "../app/actions/mra"
 import { useCurrentUser } from "../context/CurrentUserContext"
 
 export default function CreditSales() {
@@ -57,14 +55,16 @@ export default function CreditSales() {
   const [invoiceData, setInvoiceData] = useState(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedLocationId, setSelectedLocationId] = useState("")
+  const [showVariantDialog, setShowVariantDialog] = useState(false)
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState(null)
+  const [selectedVariant, setSelectedVariant] = useState(null)
   const queryClient = useQueryClient()
   const { currentUser } = useCurrentUser()
 
-  // Fetch products (for selection)
-  const HIGH_STOCK_MIN = 4
-  const { data: highStockItems = [] } = useQuery({
-    queryKey: ["inventory", "high-stock", HIGH_STOCK_MIN],
-    queryFn: () => fetchHighStockInventory(HIGH_STOCK_MIN),
+  // Fetch products (cached)
+  const { data: products = [], isLoading: loadingProducts } = useQuery({
+    queryKey: ["products"],
+    queryFn: () => fetchProducts(),
   })
 
   // Fetch customers
@@ -92,15 +92,62 @@ export default function CreditSales() {
 
   const pool = useMemo(() => {
     const q = query.toLowerCase()
-    return highStockItems.filter((r) => (r.name || "").toLowerCase().includes(q) || (r.sku || "").toLowerCase().includes(q))
-  }, [query, highStockItems])
+    return products.filter((r) => (r.name || "").toLowerCase().includes(q) || (r.sku || "").toLowerCase().includes(q))
+  }, [query, products])
 
-  const addToCart = (item) =>
+  const addToCart = (item, variant = null) => {
     setCart((prev) => {
-      const f = prev.find((p) => p.sku === item.sku)
-      const mapped = { ...item, price: item.selling_price ?? item.price ?? 0 }
-      return f ? prev.map((p) => (p.sku === item.sku ? { ...p, qty: p.qty + 1 } : p)) : [...prev, { ...mapped, qty: 1 }]
+      const itemKey = variant ? `${item.sku}-${variant.name}-${variant.value}` : item.sku
+      const existingItem = prev.find((p) => {
+        const cartKey = p.variant ? `${p.sku}-${p.variant.name}-${p.variant.value}` : p.sku
+        return cartKey === itemKey
+      })
+
+      const basePrice = item.selling_price ?? item.price ?? 0
+      const variantPrice = variant ? (variant.additional_price || 0) : 0
+      const finalPrice = basePrice + variantPrice
+
+      const mapped = {
+        ...item,
+        price: finalPrice,
+        variant: variant ? {
+          name: variant.name,
+          value: variant.value,
+          sku_suffix: variant.sku_suffix || "",
+          additional_price: variant.additional_price || 0
+        } : null,
+        displayName: variant ? `${item.name} (${variant.name}: ${variant.value})` : item.name
+      }
+
+      return existingItem
+        ? prev.map((p) => {
+            const cartKey = p.variant ? `${p.sku}-${p.variant.name}-${p.variant.value}` : p.sku
+            return cartKey === itemKey ? { ...p, qty: p.qty + 1 } : p
+          })
+        : [...prev, { ...mapped, qty: 1 }]
     })
+  }
+
+  const handleProductClick = (product) => {
+    if (product.variants && product.variants.length > 0) {
+      setSelectedProductForVariant(product)
+      setSelectedVariant(null)
+      setShowVariantDialog(true)
+    } else {
+      addToCart(product)
+    }
+  }
+
+  const handleAddWithVariant = () => {
+    if (!selectedVariant) {
+      alert("Please select a variant")
+      return
+    }
+    addToCart(selectedProductForVariant, selectedVariant)
+    setShowVariantDialog(false)
+    setSelectedProductForVariant(null)
+    setSelectedVariant(null)
+  }
 
   const subtotal = cart.reduce((s, c) => s + c.price * c.qty, 0)
   const discountAmount = discount.type === "percentage" ? (subtotal * discount.value) / 100 : discount.value
@@ -173,23 +220,27 @@ export default function CreditSales() {
       idNumber: null,
     }
 
-  const invoiceJSON = generateInvoiceJSON(cart, customerData, "credit")
-    invoiceJSON.discount = discountAmount
-    invoiceJSON.discountType = discount.type
-    invoiceJSON.discountValue = discount.value
-    invoiceJSON.subtotal = subtotal
-    invoiceJSON.total = total
-  // Remove tax persistence; UI still shows tax calculation but we do not store in backend schema
-
-    const fiscalResult = await fiscalizeInvoice(invoiceJSON, true)
-
-    setInvoiceData({
-      ...invoiceJSON,
-      ...fiscalResult,
+  const invoiceRecord = {
+      invoiceNumber: `INV-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      customer: customerData,
+      items: cart.map(item => ({
+        name: item.displayName || item.name,
+        quantity: item.qty,
+        price: item.price,
+        total: item.qty * item.price
+      })),
+      discount: discountAmount,
+      discountType: discount.type,
+      discountValue: discount.value,
+      subtotal: subtotal,
+      total: total,
       dueDate: invoiceDetails.dueDate,
       allowedDelay: invoiceDetails.allowedDelay,
       salesOrder,
-    })
+    }
+
+    setInvoiceData(invoiceRecord)
 
     setShowInvoice(true)
     setIsProcessing(false)
@@ -207,7 +258,8 @@ export default function CreditSales() {
 
   return (
     <Section title="Credit Sales" breadcrumbs={["Home", "Sales", "Credit"]}>
-      <Grid container spacing={4}>
+      <Box sx={{ maxWidth: 1400, mx: 'auto' }}>
+        <Grid container spacing={4}>
         
         {/* Payment Summary - LEFT SIDE (md=4) */}
         <Grid item xs={12} md={4} sx={{ order: { xs: 2, md: 1 } }}>
@@ -235,7 +287,7 @@ export default function CreditSales() {
                       <div className="flex flex-col">
                         <span className="font-medium">{option.name}</span>
                         <span className="text-xs text-slate-500">
-                          Debt: ${Number(option.current_balance || 0).toFixed(2)} / ${Number(option.credit_limit || 0).toFixed(2)}
+                          Debt: Rs {Number(option.current_balance || 0).toFixed(2)} / Rs {Number(option.credit_limit || 0).toFixed(2)}
                         </span>
                       </div>
                     </li>
@@ -306,7 +358,7 @@ export default function CreditSales() {
                     icon={currentDebt > maxDebt * 0.8 ? <Warning /> : <CheckCircle />}
                     sx={{ fontSize: '0.8rem', py: 0.5 }}
                   >
-                    Debt: ${currentDebt.toFixed(2)} / ${maxDebt.toFixed(2)}
+                    Debt: Rs {currentDebt.toFixed(2)} / Rs {maxDebt.toFixed(2)}
                   </Alert>
                 </Box>
               )}
@@ -323,7 +375,7 @@ export default function CreditSales() {
                     size="small"
                   >
                     <MenuItem value="percentage">%</MenuItem>
-                    <MenuItem value="fixed">$</MenuItem>
+                    <MenuItem value="fixed">Rs</MenuItem>
                   </TextField>
                   <TextField
                     fullWidth
@@ -345,22 +397,22 @@ export default function CreditSales() {
                   <Box sx={{ mb: 2.5 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem' }}>
                       <span>Current Debt</span>
-                      <Typography sx={{ fontWeight: 600 }}>${currentDebt.toFixed(2)}</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>Rs {currentDebt.toFixed(2)}</Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem', color: '#4caf50' }}>
                       <span>New Sale</span>
-                      <Typography sx={{ fontWeight: 600 }}>+${total.toFixed(2)}</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>+Rs {total.toFixed(2)}</Typography>
                     </Box>
                     <Divider sx={{ my: 1.5 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                       <Typography sx={{ fontWeight: 600 }}>New Total Debt</Typography>
                       <Typography sx={{ fontWeight: 700, color: !canProceed ? '#d32f2f' : 'inherit' }}>
-                        ${newDebt.toFixed(2)}
+                        Rs {newDebt.toFixed(2)}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: 'text.secondary' }}>
                       <span>Credit Limit</span>
-                      <span>${maxDebt.toFixed(2)}</span>
+                      <span>Rs {maxDebt.toFixed(2)}</span>
                     </Box>
                   </Box>
 
@@ -393,17 +445,17 @@ export default function CreditSales() {
               <Box sx={{ mb: 2.5 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem' }}>
                   <span>Subtotal</span>
-                  <Typography sx={{ fontWeight: 500 }}>${subtotal.toFixed(2)}</Typography>
+                  <Typography sx={{ fontWeight: 500 }}>Rs {subtotal.toFixed(2)}</Typography>
                 </Box>
                 {discountAmount > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem', color: '#4caf50' }}>
-                    <span>Discount ({discount.type === "percentage" ? `${discount.value}%` : "$"})</span>
-                    <Typography sx={{ fontWeight: 500 }}>-${discountAmount.toFixed(2)}</Typography>
+                    <span>Discount ({discount.type === "percentage" ? `${discount.value}%` : "Rs"})</span>
+                    <Typography sx={{ fontWeight: 500 }}>-Rs {discountAmount.toFixed(2)}</Typography>
                   </Box>
                 )}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 600, pt: 1 }}>
                   <span>Total</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>Rs {total.toFixed(2)}</span>
                 </Box>
               </Box>
 
@@ -417,7 +469,7 @@ export default function CreditSales() {
                     !selectedCustomer || cart.length === 0 || !canProceed || !invoiceDetails.dueDate || isProcessing
                   }
                   fullWidth
-                  sx={{ 
+                  sx={{
                     mb: 1.5,
                     bgcolor: '#4caf50',
                     '&:hover': { bgcolor: '#45a049' }
@@ -450,31 +502,79 @@ export default function CreditSales() {
 
               {/* Search Bar */}
               <Box sx={{ mb: 2 }}>
-                <SearchInput placeholder="Search products" value={query} onChange={setQuery} />
+                <SearchInput 
+                  placeholder="Search products by name or SKU..." 
+                  value={query} 
+                  onChange={setQuery}
+                />
               </Box>
 
               {/* Product Grid */}
               <Box sx={{ mb: 3 }}>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto p-2">
-                  {pool.slice(0, 16).map((p) => (
-                    <Button
-                      key={p.sku}
-                      variant="outlined"
-                      onClick={() => addToCart(p)}
-                      className="justify-between flex-col items-start h-auto py-2"
-                      size="small"
-                      sx={{
-                        borderColor: '#4caf5050',
-                        '&:hover': {
-                          borderColor: '#4caf50',
-                          bgcolor: '#4caf5010'
-                        }
-                      }}
-                    >
-                      <span className="truncate text-left w-full text-xs">{p.name}</span>
-                      <span className="font-semibold">${Number(p.selling_price ?? p.price ?? 0).toFixed(2)}</span>
-                    </Button>
-                  ))}
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2 max-h-[450px] overflow-y-auto p-2">
+                  {loadingProducts ? (
+                    <div className="col-span-6 text-center py-8 text-slate-500">
+                      Loading products...
+                    </div>
+                  ) : pool.length === 0 ? (
+                    <div className="col-span-6 text-center py-8 text-slate-500">
+                      No products found
+                    </div>
+                  ) : (
+                    pool.slice(0, 30).map((p) => (
+                      <Button
+                        key={p.sku}
+                        variant="outlined"
+                        onClick={() => handleProductClick(p)}
+                        size="small"
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          minHeight: '85px',
+                          p: 1.5,
+                          borderColor: '#4caf5050',
+                          textAlign: 'left',
+                          '&:hover': {
+                            borderColor: '#4caf50',
+                            bgcolor: '#4caf5010'
+                          }
+                        }}
+                      >
+                        <Typography sx={{ 
+                          fontSize: '0.7rem', 
+                          fontWeight: 600, 
+                          lineHeight: 1.2,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          width: '100%'
+                        }}>
+                          {p.name}
+                        </Typography>
+                        <Box sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', mt: 'auto' }}>
+                          <Typography sx={{ fontWeight: 700, fontSize: '0.75rem' }}>
+                            Rs {Number(p.selling_price ?? p.price ?? 0).toFixed(2)}
+                          </Typography>
+                          {p.variants && p.variants.length > 0 && (
+                            <Chip 
+                              label={`${p.variants.length}v`} 
+                              size="small" 
+                              sx={{ 
+                                height: 14, 
+                                fontSize: '0.6rem',
+                                bgcolor: '#4caf5020',
+                                color: '#4caf50'
+                              }} 
+                            />
+                          )}
+                        </Box>
+                      </Button>
+                    ))
+                  )}
                 </div>
               </Box>
 
@@ -490,52 +590,83 @@ export default function CreditSales() {
                     No items added yet
                   </Typography>
                 )}
-                {cart.map((c) => (
-                  <Box key={c.sku} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, p: 2, borderRadius: 2, bgcolor: '#f8f9fa', mb: 2 }}>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.name}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                        {c.qty} × ${c.price.toFixed(2)} = ${(c.qty * c.price).toFixed(2)}
-                      </Typography>
+                {cart.map((c, index) => {
+                  const itemKey = c.variant 
+                    ? `${c.sku}-${c.variant.name}-${c.variant.value}-${index}` 
+                    : `${c.sku}-${index}`
+                  return (
+                    <Box key={itemKey} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, p: 2, borderRadius: 2, bgcolor: '#f8f9fa', mb: 2 }}>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {c.displayName || c.name}
+                          {c.variant && c.variant.additional_price !== 0 && (
+                            <span style={{ fontSize: '0.75rem', color: '#4caf50', marginLeft: '4px' }}>
+                              (+Rs {c.variant.additional_price.toFixed(2)})
+                            </span>
+                          )}
+                        </Typography>
+                        <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                          {c.qty} × Rs {c.price.toFixed(2)} = Rs {(c.qty * c.price).toFixed(2)}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() =>
+                            setCart((prev) => {
+                              const cartKey = c.variant 
+                                ? `${c.sku}-${c.variant.name}-${c.variant.value}` 
+                                : c.sku
+                              return prev.map((p, i) => {
+                                const pKey = p.variant 
+                                  ? `${p.sku}-${p.variant.name}-${p.variant.value}` 
+                                  : p.sku
+                                return pKey === cartKey && i === index 
+                                  ? { ...p, qty: Math.max(1, p.qty - 1) } 
+                                  : p
+                              })
+                            })
+                          }
+                        >
+                          -
+                        </IconButton>
+                        <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, minWidth: 24, textAlign: 'center' }}>{c.qty}</Typography>
+                        <IconButton
+                          size="small"
+                          onClick={() =>
+                            setCart((prev) => {
+                              const cartKey = c.variant 
+                                ? `${c.sku}-${c.variant.name}-${c.variant.value}` 
+                                : c.sku
+                              return prev.map((p, i) => {
+                                const pKey = p.variant 
+                                  ? `${p.sku}-${p.variant.name}-${p.variant.value}` 
+                                  : p.sku
+                                return pKey === cartKey && i === index ? { ...p, qty: p.qty + 1 } : p
+                              })
+                            })
+                          }
+                        >
+                          +
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => setCart((prev) => prev.filter((_, i) => i !== index))}
+                        >
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </Box>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          setCart((prev) =>
-                            prev.map((p) => (p.sku === c.sku ? { ...p, qty: Math.max(1, p.qty - 1) } : p)),
-                          )
-                        }
-                      >
-                        -
-                      </IconButton>
-                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, minWidth: 24, textAlign: 'center' }}>{c.qty}</Typography>
-                      <IconButton
-                        size="small"
-                        onClick={() =>
-                          setCart((prev) => prev.map((p) => (p.sku === c.sku ? { ...p, qty: p.qty + 1 } : p)))
-                        }
-                      >
-                        +
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => setCart((prev) => prev.filter((p) => p.sku !== c.sku))}
-                      >
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </Box>
-                ))}
+                  )
+                })}
               </Box>
             </CardContent>
           </Card>
         </Grid>
 
       </Grid>
+      </Box>
 
       <Dialog open={showNewCustomer} onClose={() => setShowNewCustomer(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add New Customer</DialogTitle>
@@ -586,10 +717,7 @@ export default function CreditSales() {
         </DialogTitle>
         <DialogContent>
           {invoiceData && (
-            <div className="space-y-4">
-              {invoiceData.success && (
-                <Alert severity="success">Credit invoice successfully fiscalized with MRA!</Alert>
-              )}
+            <div className="space-y-4" id="credit-invoice-print-area">
 
               <Grid container spacing={2}>
                 <Grid item xs={6}>
@@ -650,11 +778,11 @@ export default function CreditSales() {
                   Items
                 </Typography>
                 {invoiceData.items?.map((item, i) => (
-                  <div key={i} className="flex justify-between text-sm py-1">
+                  <div key={index} className="flex justify-between">
                     <span>
                       {item.name} × {item.quantity}
                     </span>
-                    <span className="font-medium">${item.total.toFixed(2)}</span>
+                    <span className="font-medium">Rs {item.total.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -664,26 +792,94 @@ export default function CreditSales() {
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${invoiceData.subtotal.toFixed(2)}</span>
+                  <span>Rs {invoiceData.subtotal.toFixed(2)}</span>
                 </div>
                 {invoiceData.discount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Discount</span>
-                    <span>-${invoiceData.discount.toFixed(2)}</span>
+                    <span>-Rs {invoiceData.discount.toFixed(2)}</span>
                   </div>
                 )}
                 {/* Tax removed per requirements */}
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total</span>
-                  <span>${invoiceData.total.toFixed(2)}</span>
+                  <span>Rs {invoiceData.total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
           )}
         </DialogContent>
         <DialogActions>
+          <Button 
+            variant="outlined" 
+            onClick={() => {
+              const printContent = document.getElementById('credit-invoice-print-area')
+              const windowPrint = window.open('', '', 'width=800,height=600')
+              windowPrint.document.write('<html><head><title>Credit Invoice</title>')
+              windowPrint.document.write('<style>body{font-family:Arial,sans-serif;padding:20px}@media print{body{padding:0}}</style>')
+              windowPrint.document.write('</head><body>')
+              windowPrint.document.write(printContent.innerHTML)
+              windowPrint.document.write('</body></html>')
+              windowPrint.document.close()
+              windowPrint.print()
+            }}
+          >
+            Print Invoice
+          </Button>
           <Button variant="contained" onClick={handleCompleteSale}>
             Complete Credit Sale
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Variant Selection Dialog */}
+      <Dialog open={showVariantDialog} onClose={() => setShowVariantDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Select Variant
+          {selectedProductForVariant && (
+            <Typography variant="body2" color="text.secondary">
+              {selectedProductForVariant.name}
+            </Typography>
+          )}
+        </DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Choose Variant</InputLabel>
+            <Select
+              value={selectedVariant ? JSON.stringify(selectedVariant) : ""}
+              label="Choose Variant"
+              onChange={(e) => setSelectedVariant(JSON.parse(e.target.value))}
+            >
+              {selectedProductForVariant?.variants?.map((variant, index) => {
+                const variantPrice = (selectedProductForVariant.selling_price || 0) + (variant.additional_price || 0)
+                return (
+                  <MenuItem key={index} value={JSON.stringify(variant)}>
+                    <div className="flex justify-between items-center w-full">
+                      <span>
+                        {variant.name}: {variant.value}
+                        {variant.sku_suffix && (
+                          <span className="text-xs text-slate-500 ml-1">({variant.sku_suffix})</span>
+                        )}
+                      </span>
+                      <span className="font-semibold ml-4">
+                        Rs {variantPrice.toFixed(2)}
+                        {variant.additional_price !== 0 && (
+                          <span className="text-xs text-green-600 ml-1">
+                            (+Rs {variant.additional_price.toFixed(2)})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </MenuItem>
+                )
+              })}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowVariantDialog(false)}>Cancel</Button>
+          <Button onClick={handleAddWithVariant} variant="contained" disabled={!selectedVariant} sx={{ bgcolor: '#4caf50', '&:hover': { bgcolor: '#45a049' } }}>
+            Add to Cart
           </Button>
         </DialogActions>
       </Dialog>

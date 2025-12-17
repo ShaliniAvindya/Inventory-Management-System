@@ -298,10 +298,7 @@ export default function Suppliers() {
             unit_cost: item.unitPrice,
             total_cost: item.quantity * item.unitPrice
           }
-        }),
-        subtotal,
-        tax_amount: tax,
-        total
+        })
       }
 
       await createPurchaseOrder(poData)
@@ -439,8 +436,10 @@ export default function Suppliers() {
     }
 
     try {
+      const grnNumber = `GRN-${Date.now()}`
+      
       const receiveData = {
-        grn_number: `GRN-${Date.now()}`, // Generate GRN number
+        grn_number: grnNumber,
         location_id: grnFormData.locationId,
         received_items: grnItems
           .filter(item => item.quantity > 0) // Only send items with quantity
@@ -776,10 +775,10 @@ export default function Suppliers() {
                       <span>Subtotal:</span>
                       <span>Rs {calculatePOTotals().subtotal.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between mb-2">
-                      <span>Tax (15%):</span>
+                    {/* <div className="flex justify-between mb-2">
+                      <span>Dilivary Fee (15%):</span>
                       <span>Rs {calculatePOTotals().tax.toFixed(2)}</span>
-                    </div>
+                    </div> */}
                     <div className="flex justify-between font-bold text-lg">
                       <span>Total:</span>
                       <span>Rs {calculatePOTotals().total.toFixed(2)}</span>
@@ -841,10 +840,10 @@ export default function Suppliers() {
                     </TableCell>
                     <TableCell sx={{ py: 1.5 }}>
                       <Chip 
-                        label={po.payment_status || "Pending"} 
+                        label={po.invoice_details?.payment_status || "Pending"} 
                         color={
-                          po.payment_status === "Paid" ? "success" : 
-                          po.payment_status === "Partially Paid" ? "warning" : 
+                          po.invoice_details?.payment_status === "Paid" ? "success" : 
+                          po.invoice_details?.payment_status === "Partially Paid" ? "warning" : 
                           "default"
                         } 
                         size="small"
@@ -863,7 +862,7 @@ export default function Suppliers() {
                     </TableCell>
                     <TableCell align="right" sx={{ py: 1.5 }}>
                       <div className="flex justify-end gap-1">
-                        {po.payment_status !== "Paid" && (
+                        {po.invoice_details?.payment_status !== "Paid" && (
                           <Button
                             size="small"
                             variant="outlined"
@@ -1129,10 +1128,10 @@ export default function Suppliers() {
                   </TableCell>
                   <TableCell sx={{ py: 1.5 }}>
                     <Chip 
-                      label={po.payment_status || "Pending"} 
+                      label={po.invoice_details?.payment_status || "Pending"} 
                       color={
-                        po.payment_status === "Paid" ? "success" : 
-                        po.payment_status === "Partially Paid" ? "warning" : 
+                        po.invoice_details?.payment_status === "Paid" ? "success" : 
+                        po.invoice_details?.payment_status === "Partially Paid" ? "warning" : 
                         "default"
                       } 
                       size="small"
@@ -1146,7 +1145,7 @@ export default function Suppliers() {
                     />
                   </TableCell>
                   <TableCell align="right" sx={{ py: 1.5 }}>
-                    {po.payment_status !== "Paid" && (
+                    {po.invoice_details?.payment_status !== "Paid" && (
                       <Button
                         size="small"
                         variant="outlined"

@@ -17,6 +17,7 @@ const inventoryRoutes = require('./routes/inventory.routes');
 const stockTransferRoutes = require('./routes/stockTransfer.routes');
 const purchaseOrderRoutes = require('./routes/purchaseOrder.routes');
 const salesOrderRoutes = require('./routes/salesOrder.routes');
+const salesRoutes = require('./routes/sales.routes');
 const paymentRoutes = require('./routes/payment.routes');
 // Legacy returnsExchange.routes is replaced by new returns.routes (refund/exchange handling)
 let returnsRoutes;
@@ -27,6 +28,7 @@ try {
 }
 const checkoutRoutes = require('./routes/checkout.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
 const { startEmailScheduler } = require('./jobs/emailScheduler');
 
 const app = express();
@@ -44,7 +46,7 @@ app.use((req, res, next) => {
 app.use(cors({
     // This must be your exact frontend origin
     // We assume it's localhost:3000 for development
-    origin: 'http://localhost:3000', 
+    origin: 'http://localhost:3000',
     credentials: true // <-- Allows the browser to send cookies
 }));
 // Ensure preflight requests are handled
@@ -65,7 +67,7 @@ app.use('/api/auth', authRoutes);
 
 // --- Route Middleware ---
 app.use('/api/users', userRoutes);
- 
+
 // Product Routes
 app.use('/api/products', productRoutes);
 
@@ -93,6 +95,9 @@ app.use('/api/purchase-orders', purchaseOrderRoutes);
 // Get an order (both credit and cash)
 app.use('/api/sales-orders', salesOrderRoutes);
 
+// Sales history and analytics
+app.use('/api/sales', salesRoutes);
+
 // Payment Routes
 app.use('/api/payments', paymentRoutes);
 
@@ -104,6 +109,9 @@ app.use('/api/checkout', checkoutRoutes);
 
 // Notification routes (email reminders)
 app.use('/api/notifications', notificationRoutes);
+
+// Analytics routes (admin dashboard, transaction logs, payments)
+app.use('/api/analytics', analyticsRoutes);
 
 
 // 1. Catch 404 - If a request reaches here, no route handled it
@@ -128,19 +136,30 @@ app.use((err, req, res, next) => {
         error: {
             message: message,
             // Only send the stack trace in development mode for debugging
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         }
     });
 });
 
+// Connect to database
 connectDB();
 
-// Start the server
-app.listen(PORT, () => {
-    console.log(`Server is running on : ${PORT}`);
-    
-    // Start email scheduler after server starts
-    startEmailScheduler().catch(err => {
-        console.error('Failed to start email scheduler:', err);
+// Start the server only in development (not on Vercel)
+if (process.env.VERCEL !== '1') {
+    // Local development
+    app.listen(PORT, () => {
+        console.log(`Server is running on : ${PORT}`);
+
+        // Start email scheduler after server starts
+        startEmailScheduler().catch(err => {
+            console.error('Failed to start email scheduler:', err);
+        });
     });
-});
+} else {
+    // On Vercel, just log that we're ready
+    console.log('Server configured for Vercel serverless');
+    // Email scheduler will run on-demand for serverless
+}
+
+// Export the Express app for Vercel
+module.exports = app;

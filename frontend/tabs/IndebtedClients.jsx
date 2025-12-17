@@ -164,7 +164,7 @@ export default function IndebtedClients() {
     const confirmed = window.confirm(
       `Send email reminder to ${customerData.customer.name}?\n\n` +
       `Email: ${customerData.customer.email}\n` +
-      `Outstanding: $${customerData.totalOutstanding.toFixed(2)}\n` +
+      `Outstanding: Rs ${customerData.totalOutstanding.toFixed(2)}\n` +
       `Overdue Orders: ${customerData.ordersCount}`
     )
     
@@ -365,7 +365,7 @@ export default function IndebtedClients() {
                         <Grid item xs={12} sm={6} md={3}>
                           <Typography variant="caption" sx={{ color: '#666', fontWeight: 500 }}>Total Outstanding</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 700, color: '#d32f2f', fontSize: '0.95rem' }}>
-                            ${customerData.totalOutstanding.toFixed(2)}
+                            Rs {customerData.totalOutstanding.toFixed(2)}
                           </Typography>
                         </Grid>
                         <Grid item xs={12} sm={6} md={3}>
@@ -462,14 +462,14 @@ export default function IndebtedClients() {
                                   ) : 'N/A'}
                                 </TableCell>
                                 <TableCell align="right">
-                                  ${(order.subtotal_snapshot || 0).toFixed(2)}
+                                  Rs {(order.subtotal_snapshot || 0).toFixed(2)}
                                 </TableCell>
                                 <TableCell align="right">
-                                  ${(order.amount_paid_cash || 0).toFixed(2)}
+                                  Rs {(order.amount_paid_cash || 0).toFixed(2)}
                                 </TableCell>
                                 <TableCell align="right">
                                   <strong className="text-red-600">
-                                    ${(order.credit_outstanding || 0).toFixed(2)}
+                                    Rs {(order.credit_outstanding || 0).toFixed(2)}
                                   </strong>
                                 </TableCell>
                                 <TableCell>
@@ -510,13 +510,13 @@ export default function IndebtedClients() {
                         <Grid item xs={6} sm={3}>
                           <Typography variant="caption" sx={{ color: '#666', fontWeight: 500 }}>Current Balance</Typography>
                           <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                            ${(customerData.customer.current_balance || 0).toFixed(2)}
+                            Rs {(customerData.customer.current_balance || 0).toFixed(2)}
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
                           <Typography variant="caption" sx={{ color: '#666', fontWeight: 500 }}>Credit Limit</Typography>
                           <Typography variant="body2" sx={{ fontSize: '0.9rem' }}>
-                            ${(customerData.customer.credit_limit || 0).toFixed(2)}
+                            Rs {(customerData.customer.credit_limit || 0).toFixed(2)}
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -528,7 +528,7 @@ export default function IndebtedClients() {
                               ? '#4caf50' 
                               : '#d32f2f'
                           }}>
-                            ${Math.max(0, (customerData.customer.credit_limit || 0) - (customerData.customer.current_balance || 0)).toFixed(2)}
+                            Rs {Math.max(0, (customerData.customer.credit_limit || 0) - (customerData.customer.current_balance || 0)).toFixed(2)}
                           </Typography>
                         </Grid>
                         <Grid item xs={6} sm={3}>
@@ -561,12 +561,12 @@ export default function IndebtedClients() {
                     <strong>Order:</strong> {selectedOrder.order_number}
                   </Typography>
                   <Typography variant="body2">
-                    <strong>Order Outstanding:</strong> ${(selectedOrder.credit_outstanding || 0).toFixed(2)}
+                    <strong>Order Outstanding:</strong> Rs {(selectedOrder.credit_outstanding || 0).toFixed(2)}
                   </Typography>
                 </>
               ) : (
                 <Typography variant="body2">
-                  <strong>Total Outstanding Balance:</strong> ${(selectedCustomer?.current_balance || 0).toFixed(2)}
+                  <strong>Total Outstanding Balance:</strong> Rs {(selectedCustomer?.current_balance || 0).toFixed(2)}
                 </Typography>
               )}
             </Alert>
@@ -578,7 +578,7 @@ export default function IndebtedClients() {
               value={paymentAmount}
               onChange={(e) => setPaymentAmount(e.target.value)}
               InputProps={{
-                startAdornment: <Typography sx={{ mr: 1 }}>$</Typography>,
+                startAdornment: <Typography sx={{ mr: 1 }}>Rs</Typography>,
               }}
               inputProps={{
                 min: 0,
@@ -589,9 +589,9 @@ export default function IndebtedClients() {
 
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               {selectedOrder ? (
-                <>Remaining order balance: ${Math.max(0, (selectedOrder.credit_outstanding || 0) - parseFloat(paymentAmount || 0)).toFixed(2)}</>
+                <>Remaining order balance: Rs {Math.max(0, (selectedOrder.credit_outstanding || 0) - parseFloat(paymentAmount || 0)).toFixed(2)}</>
               ) : (
-                <>Remaining customer balance: ${Math.max(0, (selectedCustomer?.current_balance || 0) - parseFloat(paymentAmount || 0)).toFixed(2)}</>
+                <>Remaining customer balance: Rs {Math.max(0, (selectedCustomer?.current_balance || 0) - parseFloat(paymentAmount || 0)).toFixed(2)}</>
               )}
             </Typography>
 

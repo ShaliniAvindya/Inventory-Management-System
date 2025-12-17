@@ -141,7 +141,7 @@ export default function Returns() {
   }
 
   const handleGenerateCreditNote = (returnData) => {
-    alert(`Credit Note generated for ${returnData.returnNumber}. Total: $${returnData.total.toFixed(2)}`)
+    alert(`Credit Note generated for ${returnData.returnNumber}. Total: Rs ${returnData.total.toFixed(2)}`)
   }
 
   return (
@@ -262,9 +262,9 @@ export default function Returns() {
                   <Alert severity="info" sx={{ fontSize: '0.8rem', py: 0.5 }}>
                     Customer: {selectedCustomer.name}
                     <br />
-                    Current Debt: ${selectedCustomer.currentDebt.toFixed(2)}
+                    Current Debt: Rs {selectedCustomer.currentDebt.toFixed(2)}
                     <br />
-                    After Refund: ${Math.max(0, selectedCustomer.currentDebt - total).toFixed(2)}
+                    After Refund: Rs {Math.max(0, selectedCustomer.currentDebt - total).toFixed(2)}
                   </Alert>
                 </Box>
               )}
@@ -275,15 +275,15 @@ export default function Returns() {
               <Box sx={{ mb: 2.5 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem' }}>
                   <span>Subtotal</span>
-                  <Typography sx={{ fontWeight: 500 }}>${subtotal.toFixed(2)}</Typography>
+                  <Typography sx={{ fontWeight: 500 }}>Rs {subtotal.toFixed(2)}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5, fontSize: '0.875rem', color: '#d32f2f' }}>
                   <span>Tax (15%)</span>
-                  <Typography sx={{ fontWeight: 500 }}>${tax.toFixed(2)}</Typography>
+                  <Typography sx={{ fontWeight: 500 }}>Rs {tax.toFixed(2)}</Typography>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', fontWeight: 600, pt: 1, color: '#d32f2f' }}>
                   <span>Total Refund</span>
-                  <span>${total.toFixed(2)}</span>
+                  <span>Rs {total.toFixed(2)}</span>
                 </Box>
               </Box>
 
@@ -364,7 +364,7 @@ export default function Returns() {
                             {it.name}
                           </Typography>
                           <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                            Ordered: {it.quantity_ordered} • Available: {it.quantity_available_to_return} • Unit: ${it.unit_price.toFixed(2)}
+                            Ordered: {it.quantity_ordered} • Available: {it.quantity_available_to_return} • Unit: Rs {it.unit_price.toFixed(2)}
                           </Typography>
                         </Box>
                         <TextField
@@ -400,7 +400,7 @@ export default function Returns() {
                         {item.name}
                       </Typography>
                       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
-                        {item.returnQty} × ${item.price.toFixed(2)} = ${(item.returnQty * item.price).toFixed(2)}
+                        {item.returnQty} × Rs {item.price.toFixed(2)} = Rs {(item.returnQty * item.price).toFixed(2)}
                       </Typography>
                     </Box>
                     <IconButton
@@ -458,7 +458,7 @@ export default function Returns() {
                         {r.refundMethod?.replace('_', ' ') || 'Cash'}
                       </TableCell>
                       <TableCell sx={{ fontWeight: 600, color: '#d32f2f' }}>
-                        ${(r.refund_amount ?? r.total ?? 0).toFixed(2)}
+                        Rs {(r.refund_amount ?? r.total ?? 0).toFixed(2)}
                       </TableCell>
                       <TableCell>
                         <Chip label={r.status} size="small" color="success" />
@@ -541,7 +541,7 @@ export default function Returns() {
                   <span>
                     {item.name} × {item.returnQty}
                   </span>
-                  <span className="font-medium">${(item.price * item.returnQty).toFixed(2)}</span>
+                  <span className="font-medium">Rs {(item.price * item.returnQty).toFixed(2)}</span>
                 </div>
               ))}
             </div>
@@ -551,15 +551,15 @@ export default function Returns() {
             <div className="space-y-1">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>Rs {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Tax (15%)</span>
-                <span>${tax.toFixed(2)}</span>
+                <span>Rs {tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-lg font-semibold text-red-600">
                 <span>Total Refund</span>
-                <span>${total.toFixed(2)}</span>
+                <span>Rs {total.toFixed(2)}</span>
               </div>
             </div>
 
@@ -659,7 +659,7 @@ export default function Returns() {
                     <span>
                       {item.name} × {item.quantity}
                     </span>
-                    <span className="font-medium">${item.total.toFixed(2)}</span>
+                    <span className="font-medium">Rs {item.total.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -669,15 +669,15 @@ export default function Returns() {
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span>${viewReturn.subtotal.toFixed(2)}</span>
+                  <span>Rs {viewReturn.subtotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tax (15%)</span>
-                  <span>${viewReturn.tax.toFixed(2)}</span>
+                  <span>Rs {viewReturn.tax.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold text-red-600">
                   <span>Total Refund</span>
-                  <span>${viewReturn.total.toFixed(2)}</span>
+                  <span>Rs {viewReturn.total.toFixed(2)}</span>
                 </div>
               </div>
 
