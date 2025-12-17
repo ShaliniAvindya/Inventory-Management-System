@@ -1,8 +1,9 @@
+// controllers/auth.controller.js
 const User = require('../models/User.model');
 const jwt = require('jsonwebtoken');
 const formatUser = require('../utils/formatUser');
 
-// Helper to generate JWT
+// Helper: generate JWT
 const generateToken = (user) => {
   return jwt.sign(
     { id: user._id, role: user.role },
@@ -11,7 +12,7 @@ const generateToken = (user) => {
   );
 };
 
-// Register a new user
+// Register
 exports.register = async (req, res) => {
   try {
     const { username, email, password, first_name, last_name } = req.body;
@@ -25,9 +26,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
 
-    const user = await User.create({
-      username, email, password, first_name, last_name
-    });
+    const user = await User.create({ username, email, password, first_name, last_name });
 
     res.status(201).json({ success: true, message: 'User registered successfully. Please log in.' });
   } catch (err) {
@@ -36,14 +35,12 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login a User
+// Login
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password required' });
-    }
+    if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password required' });
 
     const user = await User.findOne({ email }).select('+password');
     if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials' });
@@ -51,18 +48,17 @@ exports.login = async (req, res) => {
     const isMatch = await user.matchPassword(password);
     if (!isMatch) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
-    // Update last login timestamp
     user.last_login_at = new Date();
     await user.save({ validateBeforeSave: false });
 
     const token = generateToken(user);
 
-    // Set cookie for cross-origin
+    // Cookie for cross-origin frontend
     res.cookie('token', token, {
       httpOnly: true,
-      secure: true,           // must be true on Vercel
-      sameSite: 'none',       // cross-origin cookie
-      maxAge: 24 * 60 * 60 * 1000 // 1 day
+      secure: true,       // must be HTTPS on Vercel
+      sameSite: 'none',   // cross-origin allowed
+      maxAge: 24 * 60 * 60 * 1000
     });
 
     const hydratedUser = await User.findById(user._id).populate('active_location_id');
@@ -84,21 +80,16 @@ exports.logout = (req, res) => {
     secure: true,
     sameSite: 'none'
   });
-
   res.status(200).json({ success: true, data: {} });
 };
 
 // Get current user
 exports.getMe = async (req, res) => {
   try {
-    if (!req.user?.id) {
-      return res.status(401).json({ success: false, message: 'Not authorized' });
-    }
+    if (!req.user?.id) return res.status(401).json({ success: false, message: 'Not authorized' });
 
     const user = await User.findById(req.user.id).populate('active_location_id');
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     res.status(200).json({ success: true, user: formatUser(user) });
   } catch (err) {
