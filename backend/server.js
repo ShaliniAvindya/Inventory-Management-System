@@ -1,11 +1,11 @@
 require('dotenv').config();
-const connectDB = require('./config/db');
-
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const connectDB = require('./config/db');
 
+// Import your routes
 const userRoutes = require('./routes/user.routes');
 const authRoutes = require('./routes/auth.routes');
 const productRoutes = require('./routes/product.routes');
@@ -19,13 +19,14 @@ const purchaseOrderRoutes = require('./routes/purchaseOrder.routes');
 const salesOrderRoutes = require('./routes/salesOrder.routes');
 const salesRoutes = require('./routes/sales.routes');
 const paymentRoutes = require('./routes/payment.routes');
-// Legacy returnsExchange.routes is replaced by new returns.routes (refund/exchange handling)
+
 let returnsRoutes;
 try {
     returnsRoutes = require('./routes/returns.routes');
 } catch (e) {
     returnsRoutes = require('./routes/returnsExchange.routes');
 }
+
 const checkoutRoutes = require('./routes/checkout.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
@@ -33,133 +34,87 @@ const { startEmailScheduler } = require('./jobs/emailScheduler');
 
 const app = express();
 
-const PORT = process.env.PORT || 3001;
+// Connect to DB
+connectDB();
 
+// Middlewares
 app.use(helmet());
+app.use(cors({
+    origin: 'http://localhost:3000', // Update for production frontend URL
+    credentials: true
+}));
+app.use(cookieParser());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Simple request logger to help debug routing
+// Simple logger
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
     next();
 });
 
-app.use(cors({
-    // This must be your exact frontend origin
-    // We assume it's localhost:3000 for development
-    origin: 'http://localhost:3000',
-    credentials: true // <-- Allows the browser to send cookies
-}));
-// Ensure preflight requests are handled
-// Express 5 no longer supports '*' in route paths with path-to-regexp; use a regex
-// app.options(/.*/, cors());
-app.use(cookieParser());
+// --- Routes ---
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Root route (for testing in browser)
+app.get('/', (req, res) => {
+    res.send('Inventory Management System Backend is live!');
+});
 
-// Health endpoint(s)
+// Health check
 app.all(['/api/health', '/health'], (req, res) => {
     res.json({ success: true, status: 'ok' });
 });
 
-// Use the authentication routes
+// Authentication
 app.use('/api/auth', authRoutes);
 
-// --- Route Middleware ---
+// Main API routes
 app.use('/api/users', userRoutes);
-
-// Product Routes
 app.use('/api/products', productRoutes);
-
-// Category Routes
 app.use('/api/categories', categoryRoutes);
-
-// Customer Routes
 app.use('/api/customers', customerRoutes);
-
-/// Supplier Routes
 app.use('/api/suppliers', supplierRoutes);
-
-// Location Routes
 app.use('/api/locations', locationRoutes);
-
-// Inventory Routes
 app.use('/api/inventory', inventoryRoutes);
-
-// Stock Transfer Routes
 app.use('/api/stock-transfers', stockTransferRoutes);
-
-// Purchase Order
 app.use('/api/purchase-orders', purchaseOrderRoutes);
-
-// Get an order (both credit and cash)
 app.use('/api/sales-orders', salesOrderRoutes);
-
-// Sales history and analytics
 app.use('/api/sales', salesRoutes);
-
-// Payment Routes
 app.use('/api/payments', paymentRoutes);
-
-// Return an item
 app.use('/api/returns', returnsRoutes);
-
-// pos sale
 app.use('/api/checkout', checkoutRoutes);
-
-// Notification routes (email reminders)
 app.use('/api/notifications', notificationRoutes);
-
-// Analytics routes (admin dashboard, transaction logs, payments)
 app.use('/api/analytics', analyticsRoutes);
 
-
-// 1. Catch 404 - If a request reaches here, no route handled it
-app.use((req, res, next) => {
+// Catch 404 for undefined routes
+app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: `The resource at ${req.originalUrl} was not found.`
+        message: `Resource at ${req.originalUrl} not found`
     });
 });
 
-// 2. Global Error Handler (Express recognizes this as an error handler
-//    because it takes the four arguments: err, req, res, next)
+// Global error handler
 app.use((err, req, res, next) => {
-    console.error('SERVER ERROR:', err.stack); // Expert tip: log the full stack trace
-
-    // Determine the status code and message
+    console.error(err.stack);
     const status = err.status || 500;
     const message = err.message || 'Internal Server Error';
-
     res.status(status).json({
         success: false,
-        error: {
-            message: message,
-            // Only send the stack trace in development mode for debugging
-            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-        }
+        error: { message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined }
     });
 });
 
-// Connect to database
-connectDB();
-
-// Start the server only in development (not on Vercel)
+// Start email scheduler in development only
 if (process.env.VERCEL !== '1') {
-    // Local development
+    const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {
-        console.log(`Server is running on : ${PORT}`);
-
-        // Start email scheduler after server starts
-        startEmailScheduler().catch(err => {
-            console.error('Failed to start email scheduler:', err);
-        });
+        console.log(`Server running locally on port ${PORT}`);
+        startEmailScheduler().catch(err => console.error('Email scheduler failed:', err));
     });
 } else {
-    // On Vercel, just log that we're ready
     console.log('Server configured for Vercel serverless');
-    // Email scheduler will run on-demand for serverless
 }
 
-// Export the Express app for Vercel
+// Export app for Vercel serverless
 module.exports = app;
