@@ -40,7 +40,7 @@ connectDB();
 // Middlewares
 app.use(helmet());
 app.use(cors({
-    origin: 'http://localhost:3000', // Update for production frontend URL
+    origin: 'https://inventory-management-system-xi-one-18.vercel.app', // Update for production frontend URL
     credentials: true
 }));
 app.use(cookieParser());
@@ -118,3 +118,4 @@ if (process.env.VERCEL !== '1') {
 
 // Export app for Vercel serverless
 module.exports = app;
+
