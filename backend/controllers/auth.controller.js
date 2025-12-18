@@ -70,10 +70,12 @@ exports.login = async (req, res) => {
         const responseUser = formatUser(hydratedUser);
 
         // Set cookie for frontend
+        const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
         res.cookie('token', token, {
             httpOnly: true, // Cannot be accessed by JS
-            secure: process.env.NODE_ENV === 'production', // Use HTTPS in production
+            secure: isVercel || process.env.NODE_ENV === 'production', // Ensure secure in production/Vercel
             sameSite: 'none', // Required for cross-site cookies (Vercel frontend)
+            path: '/',
             maxAge: 24 * 60 * 60 * 1000 // 1 day
         });
 
@@ -90,11 +92,13 @@ exports.login = async (req, res) => {
 // ---------------- Logout ----------------
 // @route POST /api/auth/logout
 exports.logout = (req, res) => {
+    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
     res.cookie('token', 'none', {
         expires: new Date(Date.now() + 10 * 1000), // 10 seconds
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'none'
+        secure: isVercel || process.env.NODE_ENV === 'production',
+        sameSite: 'none',
+        path: '/'
     });
 
     res.status(200).json({
