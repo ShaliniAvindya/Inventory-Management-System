@@ -5,7 +5,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 
-// Import your routes
+// Routes
 const userRoutes = require('./routes/user.routes');
 const authRoutes = require('./routes/auth.routes');
 const productRoutes = require('./routes/product.routes');
@@ -22,9 +22,9 @@ const paymentRoutes = require('./routes/payment.routes');
 
 let returnsRoutes;
 try {
-    returnsRoutes = require('./routes/returns.routes');
-} catch (e) {
-    returnsRoutes = require('./routes/returnsExchange.routes');
+  returnsRoutes = require('./routes/returns.routes');
+} catch {
+  returnsRoutes = require('./routes/returnsExchange.routes');
 }
 
 const checkoutRoutes = require('./routes/checkout.routes');
@@ -34,41 +34,46 @@ const { startEmailScheduler } = require('./jobs/emailScheduler');
 
 const app = express();
 
-// Connect to DB
-connectDB();
-
-// Middlewares
+/* -------------------- Middlewares -------------------- */
 app.use(helmet());
 app.use(cors({
-    origin: 'http://localhost:3000', // Update for production frontend URL
-    credentials: true
+  origin: true,
+  credentials: true
 }));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Simple logger
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+/* -------------------- Mongo Middleware -------------------- */
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
     next();
+  } catch (err) {
+    console.error('❌ MongoDB connection failed:', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Database connection failed'
+    });
+  }
 });
 
-// --- Routes ---
+/* -------------------- Logger -------------------- */
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
 
-// Root route (for testing in browser)
+/* -------------------- Routes -------------------- */
 app.get('/', (req, res) => {
-    res.send('Inventory Management System Backend is live!');
+  res.send('Inventory Management System Backend is live!');
 });
 
-// Health check
 app.all(['/api/health', '/health'], (req, res) => {
-    res.json({ success: true, status: 'ok' });
+  res.json({ success: true, status: 'ok' });
 });
 
-// Authentication
 app.use('/api/auth', authRoutes);
-
-// Main API routes
 app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -86,35 +91,34 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
-// Catch 404 for undefined routes
+/* -------------------- 404 -------------------- */
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        message: `Resource at ${req.originalUrl} not found`
-    });
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`
+  });
 });
 
-// Global error handler
+/* -------------------- Error Handler -------------------- */
 app.use((err, req, res, next) => {
-    console.error(err.stack);
-    const status = err.status || 500;
-    const message = err.message || 'Internal Server Error';
-    res.status(status).json({
-        success: false,
-        error: { message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined }
-    });
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
+  });
 });
 
-// Start email scheduler in development only
+/* -------------------- Server Start -------------------- */
 if (process.env.VERCEL !== '1') {
-    const PORT = process.env.PORT || 3001;
-    app.listen(PORT, () => {
-        console.log(`Server running locally on port ${PORT}`);
-        startEmailScheduler().catch(err => console.error('Email scheduler failed:', err));
-    });
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running locally on port ${PORT}`);
+    startEmailScheduler?.().catch(err =>
+      console.error('Email scheduler failed:', err)
+    );
+  });
 } else {
-    console.log('Server configured for Vercel serverless');
+  console.log('🚀 Server configured for Vercel serverless');
 }
 
-// Export app for Vercel serverless
 module.exports = app;
