@@ -7,9 +7,7 @@ if (!cached) {
 }
 
 async function connectDB() {
-  if (cached.conn) {
-    return cached.conn;
-  }
+  if (cached.conn) return cached.conn;
 
   if (!cached.promise) {
     const MONGO_URI = 'mongodb+srv://lushware:d6nICxzWJmQuU8Pc@cluster0.5ftfjbe.mongodb.net/test';
