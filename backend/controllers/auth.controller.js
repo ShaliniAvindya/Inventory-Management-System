@@ -1,128 +1,65 @@
 const User = require('../models/User.model');
 const jwt = require('jsonwebtoken');
-const formatUser = require('../utils/formatUser');
 
-// Helper: generate JWT token
-const generateToken = (user) => {
-    return jwt.sign(
-        { id: user._id, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRE || '1d' }
-    );
-};
+const JWT_SECRET = '05bbe048d946999d993af11d05dc430b';
+const JWT_EXPIRY = '1h';
 
-// ---------------- Register a new user ----------------
-// @route POST /api/auth/register
 exports.register = async (req, res) => {
-    try {
-        const { username, email, password, first_name, last_name } = req.body;
+  const { username, email, password } = req.body;
 
-        // Check if user already exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({ success: false, message: 'Email already registered' });
-        }
+  try {
+    const user = await User.create({ username, email, password });
 
-        const user = await User.create({ username, email, password, first_name, last_name });
+    const token = user.getSignedJwtToken(JWT_SECRET, JWT_EXPIRY);
 
-        res.status(201).json({
-            success: true,
-            message: 'User registered successfully. Please log in.'
-        });
-    } catch (err) {
-        console.error('Register error:', err);
-        res.status(400).json({ success: false, message: err.message });
-    }
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+      maxAge: 3600000, // 1 hour
+    });
+
+    res.status(201).json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
 };
 
-// ---------------- Login a user ----------------
-// @route POST /api/auth/login
 exports.login = async (req, res) => {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: 'Please enter email and password' });
+  try {
+    const user = await User.findOne({ email }).select('+password');
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    try {
-        const user = await User.findOne({ email }).select('+password');
-        console.log('Login attempt for email:', email);
+    const token = user.getSignedJwtToken(JWT_SECRET, JWT_EXPIRY);
 
-        if (!user) {
-            console.log('User not found');
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
-        const isMatch = await user.matchPassword(password);
-        if (!isMatch) {
-            console.log('Password mismatch');
-            return res.status(401).json({ success: false, message: 'Invalid credentials' });
-        }
-
-        // Update last login timestamp
-        user.last_login_at = new Date();
-        await user.save({ validateBeforeSave: false });
-
-        const token = generateToken(user);
-
-        // Fetch user with populated location
-        const hydratedUser = await User.findById(user._id).populate('active_location_id');
-        const responseUser = formatUser(hydratedUser);
-
-        // Set cookie for frontend
-        const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-        res.cookie('token', token, {
-            httpOnly: true, // Cannot be accessed by JS
-            secure: isVercel || process.env.NODE_ENV === 'production', // Ensure secure in production/Vercel
-            sameSite: 'none', // Required for cross-site cookies (Vercel frontend)
-            path: '/',
-            maxAge: 24 * 60 * 60 * 1000 // 1 day
-        });
-
-        res.status(200).json({
-            success: true,
-            user: responseUser
-        });
-    } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({ success: false, message: 'Server error during login' });
-    }
-};
-
-// ---------------- Logout ----------------
-// @route POST /api/auth/logout
-exports.logout = (req, res) => {
-    const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-    res.cookie('token', 'none', {
-        expires: new Date(Date.now() + 10 * 1000), // 10 seconds
-        httpOnly: true,
-        secure: isVercel || process.env.NODE_ENV === 'production',
-        sameSite: 'none',
-        path: '/'
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'None',
+      maxAge: 3600000,
     });
 
-    res.status(200).json({
-        success: true,
-        message: 'Logged out successfully'
-    });
+    res.status(200).json({ success: true, user });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
 };
 
-// ---------------- Get current user ----------------
-// @route GET /api/auth/me
+exports.logout = async (req, res) => {
+  res.cookie('token', '', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'None',
+    expires: new Date(0),
+  });
+  res.status(200).json({ success: true, message: 'Logged out' });
+};
+
 exports.getMe = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).populate('active_location_id');
-
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
-        }
-
-        res.status(200).json({
-            success: true,
-            user: formatUser(user)
-        });
-    } catch (err) {
-        console.error('GetMe error:', err);
-        res.status(500).json({ success: false, message: 'Server error fetching user data' });
-    }
+  const user = await User.findById(req.user.id);
+  res.status(200).json({ success: true, user });
 };
