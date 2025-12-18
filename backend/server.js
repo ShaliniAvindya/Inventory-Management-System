@@ -35,13 +35,13 @@ const { startEmailScheduler } = require('./jobs/emailScheduler');
 const app = express();
 
 /* -------------------- Trust Proxy -------------------- */
-app.set('trust proxy', 1); // Required for secure cookies on Vercel
+app.set('trust proxy', 1); // Required for secure cookies behind Vercel
 
 /* -------------------- Middlewares -------------------- */
 app.use(helmet());
 app.use(cors({
-  origin: 'https://inventory-management-system-xi-one-18.vercel.app', // Your frontend URL
-  credentials: true // Required to allow cookies
+  origin: 'https://inventory-management-system-xi-one-18.vercel.app', // Your frontend
+  credentials: true
 }));
 app.use(cookieParser());
 app.use(express.json());
@@ -54,10 +54,7 @@ app.use(async (req, res, next) => {
     next();
   } catch (err) {
     console.error('❌ MongoDB connection failed:', err.message);
-    res.status(500).json({
-      success: false,
-      message: 'Database connection failed'
-    });
+    res.status(500).json({ success: false, message: 'Database connection failed' });
   }
 });
 
@@ -96,19 +93,13 @@ app.use('/api/analytics', analyticsRoutes);
 
 /* -------------------- 404 -------------------- */
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.originalUrl} not found`
-  });
+  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
 });
 
 /* -------------------- Error Handler -------------------- */
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal Server Error'
-  });
+  res.status(err.status || 500).json({ success: false, message: err.message || 'Internal Server Error' });
 });
 
 /* -------------------- Server Start -------------------- */
@@ -116,9 +107,7 @@ if (process.env.VERCEL !== '1') {
   const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {
     console.log(`🚀 Server running locally on port ${PORT}`);
-    startEmailScheduler?.().catch(err =>
-      console.error('Email scheduler failed:', err)
-    );
+    startEmailScheduler?.().catch(err => console.error('Email scheduler failed:', err));
   });
 } else {
   console.log('🚀 Server configured for Vercel serverless');
