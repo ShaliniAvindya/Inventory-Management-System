@@ -30,5 +30,4 @@ exports.protect = async (req, res, next) => {
     } catch (err) {
         res.status(401).json({ success: false, message: 'Not authorized to access this route (Invalid Token)' });
     }
-
 };
