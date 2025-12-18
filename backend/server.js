@@ -38,8 +38,11 @@ app.set('trust proxy', 1);
 
 /* -------------------- Middlewares -------------------- */
 app.use(helmet());
+// Use FRONTEND_URL env var in production; fall back to known deployed frontend URL
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://inventory-management-system-xi-one-18.vercel.app';
+console.log('Configured FRONTEND_URL:', FRONTEND_URL);
 app.use(cors({
-  origin: 'https://inventory-management-system-xi-one-18.vercel.app',
+  origin: FRONTEND_URL,
   credentials: true
 }));
 app.use(cookieParser());
