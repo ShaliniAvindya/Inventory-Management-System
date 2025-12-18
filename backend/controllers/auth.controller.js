@@ -54,11 +54,11 @@ exports.login = async (req, res, next) => {
         const hydratedUser = await User.findById(user._id).populate('active_location_id');
         const responseUser = formatUser(hydratedUser);
 
-       res.cookie('token', token, {
+      res.cookie('token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production', // must be true on Vercel (HTTPS)
-    sameSite: 'none', // allow cross-site cookies
-    maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', 
+    maxAge: 1 * 24 * 60 * 60 * 1000
 });
 
         
@@ -100,4 +100,5 @@ exports.getMe = async (req, res, next) => {
         user: formatUser(user)
     });
 };
+
 
