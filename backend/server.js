@@ -2,6 +2,7 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const mongoose = require('mongoose'); // using mongoose directly
 
 // Routes
 const userRoutes = require('./routes/user.routes');
@@ -17,17 +18,18 @@ const purchaseOrderRoutes = require('./routes/purchaseOrder.routes');
 const salesOrderRoutes = require('./routes/salesOrder.routes');
 const salesRoutes = require('./routes/sales.routes');
 const paymentRoutes = require('./routes/payment.routes');
+
 let returnsRoutes;
 try {
   returnsRoutes = require('./routes/returns.routes');
 } catch {
   returnsRoutes = require('./routes/returnsExchange.routes');
 }
+
 const checkoutRoutes = require('./routes/checkout.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
-
-const connectDB = require('./db');
+const { startEmailScheduler } = require('./jobs/emailScheduler');
 
 const app = express();
 
@@ -37,7 +39,7 @@ app.set('trust proxy', 1);
 /* -------------------- Middlewares -------------------- */
 app.use(helmet());
 app.use(cors({
-  origin: 'https://inventory-management-system-xi-one-18.vercel.app', // change to your frontend URL
+  origin: 'https://inventory-management-system-xi-one-18.vercel.app',
   credentials: true
 }));
 app.use(cookieParser());
@@ -45,7 +47,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /* -------------------- MongoDB Connection -------------------- */
-connectDB();
+const MONGO_URI = 'mongodb+srv://lushware:d6nICxzWJmQuU8Pc@cluster0.5ftfjbe.mongodb.net/test';
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
 /* -------------------- Logger -------------------- */
 app.use((req, res, next) => {
@@ -96,9 +103,11 @@ if (process.env.VERCEL !== '1') {
   const PORT = process.env.PORT || 3001;
   app.listen(PORT, () => {
     console.log(`🚀 Server running locally on port ${PORT}`);
+    startEmailScheduler?.().catch(err => console.error('Email scheduler failed:', err));
   });
 } else {
   console.log('🚀 Server configured for Vercel serverless');
 }
 
 module.exports = app;
+
