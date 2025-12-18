@@ -34,11 +34,14 @@ const { startEmailScheduler } = require('./jobs/emailScheduler');
 
 const app = express();
 
+/* -------------------- Trust Proxy -------------------- */
+app.set('trust proxy', 1); // Required for secure cookies on Vercel
+
 /* -------------------- Middlewares -------------------- */
 app.use(helmet());
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: 'https://inventory-management-system-xi-one-18.vercel.app', // Your frontend URL
+  credentials: true // Required to allow cookies
 }));
 app.use(cookieParser());
 app.use(express.json());
