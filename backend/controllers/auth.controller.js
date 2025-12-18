@@ -54,12 +54,13 @@ exports.login = async (req, res, next) => {
         const hydratedUser = await User.findById(user._id).populate('active_location_id');
         const responseUser = formatUser(hydratedUser);
 
-        res.cookie('token', token, {
-            httpOnly: true, // <-- Cannot be accessed by JavaScript
-            secure: process.env.NODE_ENV === 'production', // Use HTTPS in production
-            sameSite: 'strict', // <-- Helps prevent CSRF
-            maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day expiry (matches your JWT_EXPIRY)
-        });
+       res.cookie('token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // must be true on Vercel (HTTPS)
+    sameSite: 'none', // allow cross-site cookies
+    maxAge: 1 * 24 * 60 * 60 * 1000 // 1 day
+});
+
         
         // 2. Send the user data (without the token)
         res.status(200).json({ 
@@ -99,3 +100,4 @@ exports.getMe = async (req, res, next) => {
         user: formatUser(user)
     });
 };
+
