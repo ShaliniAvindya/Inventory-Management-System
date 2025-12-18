@@ -1,9 +1,8 @@
-require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const connectDB = require('./config/db');
+const mongoose = require('mongoose'); // using mongoose directly
 
 // Routes
 const userRoutes = require('./routes/user.routes');
@@ -35,28 +34,25 @@ const { startEmailScheduler } = require('./jobs/emailScheduler');
 const app = express();
 
 /* -------------------- Trust Proxy -------------------- */
-app.set('trust proxy', 1); // Required for secure cookies behind Vercel
+app.set('trust proxy', 1);
 
 /* -------------------- Middlewares -------------------- */
 app.use(helmet());
 app.use(cors({
-  origin: 'https://inventory-management-system-xi-one-18.vercel.app', // Your frontend
+  origin: 'https://inventory-management-system-xi-one-18.vercel.app',
   credentials: true
 }));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* -------------------- Mongo Middleware -------------------- */
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    console.error('❌ MongoDB connection failed:', err.message);
-    res.status(500).json({ success: false, message: 'Database connection failed' });
-  }
-});
+/* -------------------- MongoDB Connection -------------------- */
+const MONGO_URI = 'mongodb+srv://lushware:d6nICxzWJmQuU8Pc@cluster0.5ftfjbe.mongodb.net/test';
+mongoose.connect(MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+}).then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
 /* -------------------- Logger -------------------- */
 app.use((req, res, next) => {
