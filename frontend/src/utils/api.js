@@ -19,7 +19,7 @@ api.interceptors.response.use(
                 localStorage.removeItem('current-user');
 
                 // Get current path to avoid redirecting if already on login page
-                const currentPath = window.location.location.pathname;
+const currentPath = window.location.pathname;
 
                 // Only redirect if not already on login page
                 if (currentPath !== '/login') {
@@ -36,3 +36,4 @@ api.interceptors.response.use(
 
 
 export default api;
+
