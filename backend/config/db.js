@@ -1,36 +1,24 @@
 const mongoose = require('mongoose');
 
-let cached = global.mongoose;
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null };
-}
-
 const connectDB = async () => {
-  if (cached.conn) {
-    return cached.conn;
-  }
+  try {
+    const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/inventory';
 
-  if (!cached.promise) {
-    const MONGO_URI = process.env.MONGO_URI;
-
-    if (!MONGO_URI) {
-      throw new Error('MONGO_URI is not defined');
+    if (!process.env.MONGO_URI) {
+      console.warn('Warning: MONGO_URI is not set. Falling back to local MongoDB:', uri);
+      console.warn('If you intended to connect to a remote DB, create a backend/.env with MONGO_URI.');
     }
 
-    cached.promise = mongoose.connect(MONGO_URI, {
-      bufferCommands: false,
-    }).then((mongoose) => {
-      console.log('✅ MongoDB connected');
-      return mongoose;
-    }).catch(err => {
-      cached.promise = null;
-      throw err;
+    const conn = await mongoose.connect(uri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
     });
-  }
 
-  cached.conn = await cached.promise;
-  return cached.conn;
+    console.log(`MongoDB Connected:: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`Error connecting to MongoDB:: ${error.message}`);
+    process.exit(1);
+  }
 };
 
 module.exports = connectDB;
